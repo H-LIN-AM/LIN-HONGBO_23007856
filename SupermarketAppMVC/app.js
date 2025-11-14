@@ -89,6 +89,9 @@ const validateRegistration = (req, res, next) => {
     next();
 };
 
+const cartControllers = require('./controllers/cartControllers');
+
+
 // Define routes
 app.get('/', (req, res) => {
     res.render('index', { user: req.session.user });
@@ -190,10 +193,15 @@ app.post('/add-to-cart/:id', checkAuthenticated, (req, res) => {
     });
 });
 
-app.get('/cart', checkAuthenticated, (req, res) => {
-    const cart = req.session.cart || [];
-    res.render('cart', { cart, user: req.session.user });
-});
+// Add to cart (user clicks "Add to Cart" on product page)
+app.post('/add-to-cart/:id', checkAuthenticated, cartControllers.add);
+
+// View cart
+app.get('/cart', checkAuthenticated, cartControllers.list);
+
+// Delete from cart
+app.post('/cart/delete/:productId', checkAuthenticated, cartControllers.delete);
+
 
 app.get('/logout', (req, res) => {
     req.session.destroy();
