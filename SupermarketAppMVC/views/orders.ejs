@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Orders - HB Mart</title>
+    <link href="https://cdn.bootcdn.net/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        .orders-container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        .order-card {
+            background-color: var(--white);
+            border-radius: 8px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+        .order-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid var(--light-gray);
+        }
+        .order-id {
+            font-size: 18px;
+            font-weight: 600;
+        }
+        .order-status {
+            padding: 6px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .status-pending {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        .status-processing {
+            background-color: #cfe2ff;
+            color: #084298;
+        }
+        .status-completed {
+            background-color: #d1e7dd;
+            color: #0f5132;
+        }
+        .status-cancelled {
+            background-color: #f8d7da;
+            color: #842029;
+        }
+        .order-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        .order-detail-item {
+            display: flex;
+            flex-direction: column;
+        }
+        .order-detail-label {
+            font-size: 12px;
+            color: var(--dark-gray);
+            margin-bottom: 5px;
+        }
+        .order-detail-value {
+            font-size: 16px;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header Top -->
+    <header class="header-top">
+        <div class="header-top-content">
+            <div class="header-top-text">
+                Free delivery on orders over $60 | Same-day delivery available
+            </div>
+            <div class="header-top-links">
+                <span>Welcome, <%= user.username %>!</span>
+            </div>
+        </div>
+    </header>
+    
+    <!-- Main Header -->
+    <header class="header-main">
+        <div class="header-main-content">
+            <a href="/" class="logo">HB Mart</a>
+            
+            <div class="search-bar">
+                <i class="fas fa-search"></i>
+                <input type="text" placeholder="Search for products...">
+            </div>
+            
+            <div class="nav-links">
+                <a href="/shopping">
+                    <i class="fas fa-store"></i>
+                    <span>Shop</span>
+                </a>
+                <a href="/orders" style="color: var(--primary);">
+                    <i class="fas fa-receipt"></i>
+                    <span>My Orders</span>
+                </a>
+                <a href="/cart">
+                    <i class="fas fa-shopping-cart"></i>
+                    <span>Cart</span>
+                </a>
+                <a href="/logout">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span>Logout</span>
+                </a>
+            </div>
+        </div>
+    </header>
+    
+    <!-- Main Content -->
+    <div class="orders-container">
+        <h1 style="margin-bottom: 30px;">
+            <i class="fas fa-receipt"></i> My Orders
+        </h1>
+        
+        <% if (messages.success && messages.success.length > 0) { %>
+            <div class="alert alert-success">
+                <%= messages.success[0] %>
+            </div>
+        <% } %>
+        
+        <% if (messages.error && messages.error.length > 0) { %>
+            <div class="alert alert-error">
+                <%= messages.error[0] %>
+            </div>
+        <% } %>
+        
+        <% if (orders && orders.length > 0) { %>
+            <% orders.forEach(order => { %>
+                <div class="order-card">
+                    <div class="order-header">
+                        <div class="order-id">
+                            <i class="fas fa-file-invoice"></i> Order #<%= order.id %>
+                        </div>
+                        <div class="order-status status-<%= (order.status || 'Pending').toLowerCase() %>">
+                            <%= order.status || 'Pending' %>
+                        </div>
+                    </div>
+                    
+                    <div class="order-details">
+                        <div class="order-detail-item">
+                            <span class="order-detail-label">Order Date</span>
+                            <span class="order-detail-value">
+                                <%= new Date(order.created_at).toLocaleDateString('en-SG', { 
+                                    year: 'numeric', 
+                                    month: 'short', 
+                                    day: 'numeric' 
+                                }) %>
+                            </span>
+                        </div>
+                        
+                        <div class="order-detail-item">
+                            <span class="order-detail-label">Total Amount</span>
+                            <span class="order-detail-value" style="color: var(--primary);">
+                                $<%= parseFloat(order.total).toFixed(2) %>
+                            </span>
+                        </div>
+                        
+                        <div class="order-detail-item">
+                            <span class="order-detail-label">Items</span>
+                            <span class="order-detail-value">
+                                <%= order.item_count || 0 %> item(s)
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                        <a href="/order/<%= order.id %>" class="btn btn-secondary btn-sm">
+                            <i class="fas fa-eye"></i> View Details
+                        </a>
+                    </div>
+                </div>
+            <% }); %>
+        <% } else { %>
+            <div style="text-align: center; padding: 80px 20px;">
+                <i class="fas fa-receipt" style="font-size: 80px; color: var(--dark-gray); margin-bottom: 20px;"></i>
+                <h2 style="color: var(--text-dark); margin-bottom: 15px;">No orders yet</h2>
+                <p style="color: var(--dark-gray); margin-bottom: 30px; font-size: 18px;">
+                    Start shopping to create your first order
+                </p>
+                <a href="/shopping" class="btn" style="font-size: 18px; padding: 15px 40px;">
+                    <i class="fas fa-shopping-basket"></i> Start Shopping
+                </a>
+            </div>
+        <% } %>
+    </div>
+    
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-content">
+            <div class="footer-column">
+                <h3>About HB Mart</h3>
+                <p>Singapore's leading grocery retailer, committed to providing quality products at affordable prices.</p>
+            </div>
+            
+            <div class="footer-column">
+                <h3>Shop</h3>
+                <ul class="footer-links">
+                    <li><a href="/shopping">All Products</a></li>
+                    <li><a href="#">Promotions</a></li>
+                </ul>
+            </div>
+            
+            <div class="footer-column">
+                <h3>Help & Support</h3>
+                <ul class="footer-links">
+                    <li><a href="#">FAQs</a></li>
+                    <li><a href="#">Contact Us</a></li>
+                </ul>
+            </div>
+            
+            <div class="footer-column">
+                <h3>My Account</h3>
+                <ul class="footer-links">
+                    <li><a href="/orders">My Orders</a></li>
+                    <li><a href="/cart">Shopping Cart</a></li>
+                    <li><a href="/logout">Logout</a></li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="footer-bottom">
+            <p>&copy; 2024 HB Mart. All rights reserved.</p>
+        </div>
+    </footer>
+    
+    <script src="/js/main.js"></script>
+</body>
+</html>

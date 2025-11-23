@@ -1,85 +1,204 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <title>Supermarket App</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shop - HB Mart</title>
+    <link href="https://cdn.bootcdn.net/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
-    <nav class="navbar navbar-expand-sm bg-dark navbar-dark">
-      <div class="container-fluid">
-        <a class="navbar-brand" href="/">Supermarket App</a>
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#collapsibleNavbar">
-          <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="collapse navbar-collapse" id="collapsibleNavbar">
-          <ul class="navbar-nav">
-            <li class="nav-item">
-              <a class="nav-link" href="/cart">View Cart</a>
-            </li> 
-            <li class="nav-item">
-              <a class="nav-link" href="/logout">Logout</a>
-            </li> 
-          </ul>
+    <!-- Header Top -->
+    <header class="header-top">
+        <div class="header-top-content">
+            <div class="header-top-text">
+                Free delivery on orders over $60 | Same-day delivery available
+            </div>
+            <div class="header-top-links">
+                <span>Welcome, <%= user.username %>!</span>
+            </div>
         </div>
-      </div>
+    </header>
+    
+    <!-- Main Header -->
+    <header class="header-main">
+        <div class="header-main-content">
+            <a href="/" class="logo">HB Mart</a>
+            
+            <div class="search-bar">
+                <i class="fas fa-search"></i>
+                <input type="text" placeholder="Search for products..." id="searchInput">
+            </div>
+            
+            <div class="nav-links">
+                <a href="/shopping">
+                    <i class="fas fa-store"></i>
+                    <span>Shop</span>
+                </a>
+                <a href="/orders">
+                    <i class="fas fa-receipt"></i>
+                    <span>My Orders</span>
+                </a>
+                <a href="/cart">
+                    <i class="fas fa-shopping-cart"></i>
+                    <span>Cart</span>
+                </a>
+                <a href="/logout">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span>Logout</span>
+                </a>
+            </div>
+        </div>
+    </header>
+    
+    <!-- Category Navigation -->
+    <nav class="category-nav">
+        <div class="category-nav-content">
+            <ul>
+                <li><a href="/shopping" class="active">All Products</a></li>
+                <li><a href="#" data-category="Fresh Food">Fresh Food</a></li>
+                <li><a href="#" data-category="Pantry">Pantry</a></li>
+                <li><a href="#" data-category="Snacks">Snacks</a></li>
+                <li><a href="#" data-category="Beverages">Beverages</a></li>
+                <li><a href="#" data-category="Household">Household</a></li>
+                <li><a href="#" data-category="Personal Care">Personal Care</a></li>
+            </ul>
+        </div>
     </nav>
-
-  <div class="container">
-    <p>Welcome, <%= user.username %> (<%= user.role %>)</p>
-    <br>
-    <div class="text-center"><h2>Products from Supermarket</h2></div>
-    <br>
-    <table class="table table-hover small text-center">
-      <thead>
-          <tr>
-            <th width="100">Product Name</th>
-            <th width="100">Product Image</th>
-            <th width="50">Quantity</th>
-            <th width="50">Price</th>
-            <th width="50">Quantity</th>
-            <th width="50">Buy</th>
-          </tr>
-      </thead>
-      <tbody>
-        <% for(let i=0; i < products.length; i++) { %>
-          <tr>
-            <td><a href="/product/<%= products[i].id %>" ><%= products[i].productName %></a></td>
-            <td><img src = "images/<%= products[i].image %>" width="20%"></td>
-            <td><%= products[i].quantity %></td>
-            <td>$<%= products[i].price.toFixed(2) %></td>
-            <!-- <td>
-              <select id="role" name="role" class="form-control" >
-                <option value="1" selected >1</option>
-                <option value="2" >2</option>
-                <option value="3" >3</option>
-                <option value="4" >4</option>
-                <option value="5" >5</option>
-              </select>
-            </td> -->
-            <!-- Buy Link -->
-            <!-- <td><a href="/buyProduct/<%#= products[i].id %>" class="btn btn-primary mt-3">Buy</a></td> -->
-            <td>
-              <select class="form-control" onchange="document.getElementById('quantity-<%= products[i].id %>').value = this.value">
-                <% for (let q = 1; q <= 5; q++) { %>
-                  <option value="<%= q %>"><%= q %></option>
-                <% } %>
-              </select>
-            </td>
-
-            <td>
-                <form action="/add-to-cart/<%= products[i].id %>" method="POST">
-                  <input type="hidden" name="quantity" id="quantity-<%= products[i].id %>" value="1">
-                  <button type="submit" class="btn btn-primary mt-3">Buy</button>
-                </form>
-            </td>
-
-          </tr>
+    
+    <!-- Main Content -->
+    <div class="container">
+        <h2 class="section-title">
+            <i class="fas fa-shopping-basket"></i> Browse Our Products
+        </h2>
+        
+        <% if (messages && messages.success && messages.success.length > 0) { %>
+            <div class="alert alert-success">
+                <%= messages.success[0] %>
+            </div>
         <% } %>
-      </tbody>
-    </table>
-  </div>
+        
+        <% if (messages && messages.error && messages.error.length > 0) { %>
+            <div class="alert alert-error">
+                <%= messages.error[0] %>
+            </div>
+        <% } %>
+        
+        <% if (error) { %>
+            <div class="alert alert-error"><%= error %></div>
+        <% } %>
+        
+        <% if (products && products.length > 0) { %>
+            <div class="product-grid">
+                <% products.forEach(product => { %>
+                    <div class="product-card">
+                        <div class="product-image">
+                            <a href="/product/<%= product.id %>">
+                                <img src="/images/<%= product.image %>" alt="<%= product.productName %>" 
+                                     onerror="this.src='https://via.placeholder.com/300x300?text=No+Image'">
+                            </a>
+                            <% if (product.quantity < 10) { %>
+                                <span class="product-badge" style="background-color: var(--warning); color: var(--text-dark);">
+                                    Low Stock
+                                </span>
+                            <% } else if (product.quantity > 50) { %>
+                                <span class="product-badge" style="background-color: var(--success);">
+                                    In Stock
+                                </span>
+                            <% } %>
+                        </div>
+                        <div class="product-content">
+                            <h3 class="product-name">
+                                <a href="/product/<%= product.id %>" style="color: inherit; text-decoration: none;">
+                                    <%= product.productName %>
+                                </a>
+                            </h3>
+                            <div class="product-stock">
+                                <i class="fas fa-box"></i> 
+                                <%= product.quantity %> available
+                            </div>
+                            <div class="product-price">
+                                $<%= product.price.toFixed(2) %>
+                            </div>
+                            
+                            <% if (product.quantity > 0) { %>
+                                <form action="/add-to-cart/<%= product.id %>" method="POST" style="margin-top: 10px;">
+                                    <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+                                        <select name="quantity" class="form-control" style="flex: 1;">
+                                            <% for (let q = 1; q <= Math.min(5, product.quantity); q++) { %>
+                                                <option value="<%= q %>">Qty: <%= q %></option>
+                                            <% } %>
+                                        </select>
+                                    </div>
+                                    <button type="submit" class="add-to-cart">
+                                        <i class="fas fa-cart-plus"></i> Add to Cart
+                                    </button>
+                                </form>
+                            <% } else { %>
+                                <button class="add-to-cart" disabled style="background-color: var(--medium-gray); cursor: not-allowed;">
+                                    Out of Stock
+                                </button>
+                            <% } %>
+                        </div>
+                    </div>
+                <% }); %>
+            </div>
+        <% } else { %>
+            <div style="text-align: center; padding: 60px 20px;">
+                <i class="fas fa-box-open" style="font-size: 64px; color: var(--dark-gray); margin-bottom: 20px;"></i>
+                <h3 style="color: var(--dark-gray);">No products available</h3>
+                <p style="color: var(--dark-gray);">Check back soon for new items!</p>
+            </div>
+        <% } %>
+    </div>
+    
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-content">
+            <div class="footer-column">
+                <h3>About HB Mart</h3>
+                <p>Singapore's leading grocery retailer, committed to providing quality products at affordable prices.</p>
+                <div class="social-links">
+                    <a href="#"><i class="fab fa-facebook-f"></i></a>
+                    <a href="#"><i class="fab fa-instagram"></i></a>
+                    <a href="#"><i class="fab fa-twitter"></i></a>
+                    <a href="#"><i class="fab fa-youtube"></i></a>
+                </div>
+            </div>
+            
+            <div class="footer-column">
+                <h3>Shop</h3>
+                <ul class="footer-links">
+                    <li><a href="/shopping">All Products</a></li>
+                    <li><a href="#">Promotions</a></li>
+                    <li><a href="#">New Arrivals</a></li>
+                </ul>
+            </div>
+            
+            <div class="footer-column">
+                <h3>Help & Support</h3>
+                <ul class="footer-links">
+                    <li><a href="#">FAQs</a></li>
+                    <li><a href="#">Delivery Information</a></li>
+                    <li><a href="#">Contact Us</a></li>
+                </ul>
+            </div>
+            
+            <div class="footer-column">
+                <h3>My Account</h3>
+                <ul class="footer-links">
+                    <li><a href="/orders">My Orders</a></li>
+                    <li><a href="/cart">Shopping Cart</a></li>
+                    <li><a href="/logout">Logout</a></li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="footer-bottom">
+            <p>&copy; 2024 HB Mart. All rights reserved.</p>
+        </div>
+    </footer>
+    
+    <script src="/js/main.js"></script>
 </body>
 </html>
