@@ -115,6 +115,21 @@
                                value="<%= product.productName %>" required>
                     </div>
                     
+                    <div class="form-group">
+                        <label for="category">
+                            <i class="fas fa-list"></i> Category
+                        </label>
+                        <select class="form-control" id="category" name="category" required>
+                            <option value="Fresh Food" <%= product.category === 'Fresh Food' ? 'selected' : '' %>>Fresh Food</option>
+                            <option value="Pantry" <%= product.category === 'Pantry' ? 'selected' : '' %>>Pantry</option>
+                            <option value="Snacks" <%= product.category === 'Snacks' ? 'selected' : '' %>>Snacks</option>
+                            <option value="Beverages" <%= product.category === 'Beverages' ? 'selected' : '' %>>Beverages</option>
+                            <option value="Household" <%= product.category === 'Household' ? 'selected' : '' %>>Household</option>
+                            <option value="Personal Care" <%= product.category === 'Personal Care' ? 'selected' : '' %>>Personal Care</option>
+                            <option value="General" <%= product.category === 'General' || !product.category ? 'selected' : '' %>>General</option>
+                        </select>
+                    </div>
+                    
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
                         <div class="form-group">
                             <label for="quantity">

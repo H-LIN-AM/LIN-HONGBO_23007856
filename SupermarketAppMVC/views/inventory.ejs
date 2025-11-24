@@ -82,6 +82,7 @@
                             <th>ID</th>
                             <th>Image</th>
                             <th>Product Name</th>
+                            <th>Category</th>
                             <th>Price</th>
                             <th>Stock</th>
                             <th>Status</th>
@@ -102,6 +103,11 @@
                                     <a href="/product/<%= product.id %>" style="color: var(--text-dark); text-decoration: none; font-weight: 500;">
                                         <%= product.productName %>
                                     </a>
+                                </td>
+                                <td>
+                                    <span style="padding: 4px 10px; border-radius: 12px; font-size: 12px; background-color: var(--light-gray); color: var(--text-dark);">
+                                        <%= product.category || 'General' %>
+                                    </span>
                                 </td>
                                 <td style="color: var(--primary); font-weight: bold;">
                                     $<%= product.price.toFixed(2) %>

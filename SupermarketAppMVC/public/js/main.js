@@ -133,11 +133,26 @@ if (searchInput) {
 const categoryLinks = document.querySelectorAll('.category-nav a');
 categoryLinks.forEach(link => {
     link.addEventListener('click', function(e) {
+        e.preventDefault(); // Prevent default link behavior
+        
         // Remove active class from all links
         categoryLinks.forEach(l => l.classList.remove('active'));
         
         // Add active class to clicked link
         this.classList.add('active');
+        
+        // Get the selected category
+        const selectedCategory = this.getAttribute('data-category');
+        const productCards = document.querySelectorAll('.product-card');
+        
+        // Filter products
+        productCards.forEach(card => {
+            if (!selectedCategory || card.getAttribute('data-category') === selectedCategory) {
+                card.style.display = 'block';
+            } else {
+                card.style.display = 'none';
+            }
+        });
     });
 });
 

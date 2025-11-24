@@ -3,6 +3,7 @@
 // ========================================
 
 // Import required modules
+require('dotenv').config();  // Load environment variables
 const express = require('express');  // Express framework
 const mysql = require('mysql2');  // MySQL database driver
 const session = require('express-session');  // Session management
@@ -29,10 +30,10 @@ const upload = multer({ storage: storage });  // Create multer instance
 // Database Connection Configuration
 // ========================================
 const connection = mysql.createConnection({
-    host: 'localhost',  // Database host address
-    user: 'root',  // Database username
-    password: 'Republic_C207',  // Database password
-    database: 'c372_supermarketdb'  // Database name
+    host: process.env.DB_HOST || 'localhost',  // Database host address
+    user: process.env.DB_USER || 'root',  // Database username
+    password: process.env.DB_PASSWORD || 'Republic_C207',  // Database password
+    database: process.env.DB_NAME || 'c372_supermarketdb'  // Database name
 });
 
 // Connect to MySQL database

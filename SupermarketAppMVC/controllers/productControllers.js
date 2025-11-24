@@ -65,6 +65,7 @@ function add(req, res) {
   const user = req.session.user || null;
   // Get form data (compatible with different field names)
   const productName = req.body.productName || req.body.name;
+  const category = req.body.category || 'General';
   const quantity = parseInt(req.body.quantity, 10);
   const price = parseFloat(req.body.price);
   const image = req.file ? req.file.filename : null;  // Get uploaded image filename
@@ -88,7 +89,7 @@ function add(req, res) {
   }
 
   // Call model layer to add product to database
-  Product.add({ productName, quantity, price, image }, (err) => {
+  Product.add({ productName, category, quantity, price, image }, (err) => {
     if (err) {
       console.error('Error adding product:', err);
       req.flash('error', 'Failed to add product');
@@ -142,12 +143,13 @@ function update(req, res) {
 
   // Get form data
   const productName = req.body.productName || req.body.name;
+  const category = req.body.category || 'General';
   const quantity = parseInt(req.body.quantity, 10);
   const price = parseFloat(req.body.price);
   // If new image uploaded use new image, otherwise keep existing image
   const image = req.file ? req.file.filename : (req.body.currentImage || null);
 
-  const product = { productName, quantity, price, image };
+  const product = { productName, category, quantity, price, image };
 
   // Validate required fields
   if (!productName || Number.isNaN(quantity) || Number.isNaN(price)) {
