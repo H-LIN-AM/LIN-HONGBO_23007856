@@ -38,48 +38,7 @@
     </style>
 </head>
 <body>
-    <!-- Header Top -->
-    <header class="header-top">
-        <div class="header-top-content">
-            <div class="header-top-text">
-                Admin Panel - Add New Product
-            </div>
-            <div class="header-top-links">
-                <span>Admin: <%= user.username %></span>
-            </div>
-        </div>
-    </header>
-    
-    <!-- Main Header -->
-    <header class="header-main">
-        <div class="header-main-content">
-            <a href="/" class="logo">HB Mart Admin</a>
-            
-            <div class="search-bar">
-                <i class="fas fa-search"></i>
-                <input type="text" placeholder="Search...">
-            </div>
-            
-            <div class="nav-links">
-                <a href="/inventory">
-                    <i class="fas fa-box"></i>
-                    <span>Inventory</span>
-                </a>
-                <a href="/admin/orders">
-                    <i class="fas fa-file-invoice"></i>
-                    <span>Orders</span>
-                </a>
-                <a href="/addProduct" style="color: var(--primary);">
-                    <i class="fas fa-plus"></i>
-                    <span>Add Product</span>
-                </a>
-                <a href="/logout">
-                    <i class="fas fa-sign-out-alt"></i>
-                    <span>Logout</span>
-                </a>
-            </div>
-        </div>
-    </header>
+    <%- include('partials/navbar', { user: user, currentPage: 'addProduct', pageTitle: 'Add New Product' }) %>
     
     <!-- Main Content -->
     <div class="form-container">
@@ -174,36 +133,7 @@
         </div>
     </div>
     
-    <!-- Footer -->
-    <footer class="footer">
-        <div class="footer-content">
-            <div class="footer-column">
-                <h3>HB Mart Admin</h3>
-                <p>Manage your supermarket inventory and orders.</p>
-            </div>
-            
-            <div class="footer-column">
-                <h3>Quick Links</h3>
-                <ul class="footer-links">
-                    <li><a href="/inventory">Inventory</a></li>
-                    <li><a href="/admin/orders">Orders</a></li>
-                    <li><a href="/addProduct">Add Product</a></li>
-                </ul>
-            </div>
-            
-            <div class="footer-column">
-                <h3>Account</h3>
-                <ul class="footer-links">
-                    <li><a href="/">Dashboard</a></li>
-                    <li><a href="/logout">Logout</a></li>
-                </ul>
-            </div>
-        </div>
-        
-        <div class="footer-bottom">
-            <p>&copy; 2024 HB Mart Admin Panel. All rights reserved.</p>
-        </div>
-    </footer>
+    <%- include('partials/footer', { user: user }) %>
     
     <script src="/js/main.js"></script>
 </body>

@@ -1,82 +1,173 @@
 // ========================================
 // User Controller
-// Handles all user-related business logic
-// Provides RESTful API endpoints
+// Handles all user-related business logic and page rendering
 // ========================================
-const userModel = require('../models/user');  // User model
+const db = require('../db');  // Database connection
 
 const usersController = {
   /**
-   * Get all users list
-   * Return user data in JSON format
+   * Display user management page (Admin only)
+   * Shows all users in the system
    */
-  async list(req, res) {
-    try {
-      const users = await userModel.getAll();  // Query all users
-      return res.status(200).json(users);  // Return user list
-    } catch (err) {
-      return res.status(500).json({ error: err.message });  // Return error message
-    }
+  listAll: (req, res) => {
+    const sql = 'SELECT id, username, email, address, contact, role FROM users ORDER BY id DESC';
+    
+    db.query(sql, (err, results) => {
+      if (err) {
+        console.error('Error fetching users:', err);
+        return res.render('users', {
+          user: req.session.user,
+          users: [],
+          messages: req.flash(),
+          error: 'Error loading users'
+        });
+      }
+      
+      res.render('users', {
+        user: req.session.user,
+        users: results,
+        messages: req.flash(),
+        error: null
+      });
+    });
   },
 
   /**
-   * Get single user by ID
-   * Return specified user's detailed information
+   * Display create admin user form
    */
-  async getById(req, res) {
-    try {
-      const { id } = req.params;  // Get user ID from URL
-      const user = await userModel.getById(id);  // Query user information
-      if (!user) return res.status(404).json({ message: 'User not found' });  // User does not exist
-      return res.status(200).json(user);  // Return user information
-    } catch (err) {
-      return res.status(500).json({ error: err.message });  // Return error message
-    }
+  showCreateAdminForm: (req, res) => {
+    res.render('createAdmin', {
+      user: req.session.user,
+      messages: req.flash()
+    });
   },
 
   /**
-   * Add new user
-   * Create new user account
+   * Create new admin user (Admin only)
    */
-  async add(req, res) {
-    try {
-      const payload = req.body;  // Get user data from request body
-      const created = await userModel.create(payload);  // Create user
-      return res.status(201).json(created);  // Return created user information
-    } catch (err) {
-      return res.status(500).json({ error: err.message });  // Return error message
+  createAdmin: (req, res) => {
+    const { username, email, password, address, contact } = req.body;
+
+    // Validate all fields
+    if (!username || !email || !password || !address || !contact) {
+      req.flash('error', 'All fields are required');
+      return res.redirect('/admin/users/create');
     }
+
+    // Validate password length
+    if (password.length < 6) {
+      req.flash('error', 'Password must be at least 6 characters long');
+      return res.redirect('/admin/users/create');
+    }
+
+    // Validate contact number
+    if (!/^\d{8}$/.test(contact)) {
+      req.flash('error', 'Contact number must be exactly 8 digits');
+      return res.redirect('/admin/users/create');
+    }
+
+    // Insert new admin user into database
+    const sql = 'INSERT INTO users (username, email, password, address, contact, role) VALUES (?, ?, SHA1(?), ?, ?, ?)';
+    
+    db.query(sql, [username, email, password, address, contact, 'admin'], (err, result) => {
+      if (err) {
+        console.error('Error creating admin:', err);
+        if (err.code === 'ER_DUP_ENTRY') {
+          req.flash('error', 'Email already exists');
+        } else {
+          req.flash('error', 'Error creating admin user');
+        }
+        return res.redirect('/admin/users/create');
+      }
+
+      req.flash('success', 'Admin user created successfully!');
+      res.redirect('/admin/users');
+    });
   },
 
   /**
-   * Update user information
-   * Update specified user's data by ID
+   * Display edit user form
    */
-  async update(req, res) {
-    try {
-      const { id } = req.params;  // Get user ID from URL
-      const payload = req.body;  // Get data to update
-      const updated = await userModel.update(id, payload);  // Update user information
-      if (!updated) return res.status(404).json({ message: 'User not found' });  // User does not exist
-      return res.status(200).json(updated);  // Return updated user information
-    } catch (err) {
-      return res.status(500).json({ error: err.message });  // Return error message
-    }
+  showEditForm: (req, res) => {
+    const { id } = req.params;
+    const sql = 'SELECT id, username, email, address, contact, role FROM users WHERE id = ?';
+    
+    db.query(sql, [id], (err, results) => {
+      if (err || results.length === 0) {
+        req.flash('error', 'User not found');
+        return res.redirect('/admin/users');
+      }
+
+      res.render('editUser', {
+        user: req.session.user,
+        editUser: results[0],
+        messages: req.flash()
+      });
+    });
   },
 
   /**
-   * Delete user
-   * Delete specified user by ID
+   * Update user information (Admin only)
    */
-  async delete(req, res) {
-    try {
-      const { id } = req.params;  // Get user ID from URL
-      const deleted = await userModel.delete(id);  // Delete user
-      if (!deleted) return res.status(404).json({ message: 'User not found' });  // User does not exist
-      return res.status(204).end();  // Return empty response (deletion successful)
-    } catch (err) {
-      return res.status(500).json({ error: err.message });  // Return error message
+  update: (req, res) => {
+    const { id } = req.params;
+    const { username, email, address, contact, role } = req.body;
+
+    // Validate fields
+    if (!username || !email || !address || !contact || !role) {
+      req.flash('error', 'All fields are required');
+      return res.redirect(`/admin/users/edit/${id}`);
     }
+
+    // Validate contact number
+    if (!/^\d{8}$/.test(contact)) {
+      req.flash('error', 'Contact number must be exactly 8 digits');
+      return res.redirect(`/admin/users/edit/${id}`);
+    }
+
+    const sql = 'UPDATE users SET username = ?, email = ?, address = ?, contact = ?, role = ? WHERE id = ?';
+    
+    db.query(sql, [username, email, address, contact, role, id], (err, result) => {
+      if (err) {
+        console.error('Error updating user:', err);
+        req.flash('error', 'Error updating user');
+        return res.redirect(`/admin/users/edit/${id}`);
+      }
+
+      req.flash('success', 'User updated successfully!');
+      res.redirect('/admin/users');
+    });
+  },
+
+  /**
+   * Delete user (Admin only)
+   */
+  delete: (req, res) => {
+    const { id } = req.params;
+
+    // Prevent admin from deleting themselves
+    if (parseInt(id) === req.session.user.id) {
+      req.flash('error', 'You cannot delete your own account');
+      return res.redirect('/admin/users');
+    }
+
+    const sql = 'DELETE FROM users WHERE id = ?';
+    
+    db.query(sql, [id], (err, result) => {
+      if (err) {
+        console.error('Error deleting user:', err);
+        req.flash('error', 'Error deleting user');
+        return res.redirect('/admin/users');
+      }
+
+      if (result.affectedRows === 0) {
+        req.flash('error', 'User not found');
+      } else {
+        req.flash('success', 'User deleted successfully!');
+      }
+      
+      res.redirect('/admin/users');
+    });
   }
 };
 

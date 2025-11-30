@@ -65,67 +65,7 @@
     </style>
 </head>
 <body>
-    <!-- Header Top -->
-    <header class="header-top">
-        <div class="header-top-content">
-            <div class="header-top-text">
-                <% if (user.role === 'admin') { %>
-                    Admin Panel - Product Management
-                <% } else { %>
-                    Free delivery on orders over $60 | Same-day delivery available
-                <% } %>
-            </div>
-            <div class="header-top-links">
-                <span>Welcome, <%= user.username %>!</span>
-            </div>
-        </div>
-    </header>
-    
-    <!-- Main Header -->
-    <header class="header-main">
-        <div class="header-main-content">
-            <a href="/" class="logo">HB Mart</a>
-            
-            <div class="search-bar">
-                <i class="fas fa-search"></i>
-                <input type="text" placeholder="Search for products...">
-            </div>
-            
-            <div class="nav-links">
-                <% if (user.role === 'admin') { %>
-                    <a href="/inventory">
-                        <i class="fas fa-box"></i>
-                        <span>Inventory</span>
-                    </a>
-                    <a href="/admin/orders">
-                        <i class="fas fa-file-invoice"></i>
-                        <span>Orders</span>
-                    </a>
-                    <a href="/addProduct">
-                        <i class="fas fa-plus"></i>
-                        <span>Add Product</span>
-                    </a>
-                <% } else { %>
-                    <a href="/shopping">
-                        <i class="fas fa-store"></i>
-                        <span>Shop</span>
-                    </a>
-                    <a href="/orders">
-                        <i class="fas fa-receipt"></i>
-                        <span>My Orders</span>
-                    </a>
-                    <a href="/cart">
-                        <i class="fas fa-shopping-cart"></i>
-                        <span>Cart</span>
-                    </a>
-                <% } %>
-                <a href="/logout">
-                    <i class="fas fa-sign-out-alt"></i>
-                    <span>Logout</span>
-                </a>
-            </div>
-        </div>
-    </header>
+    <%- include('partials/navbar', { user: user, currentPage: 'product' }) %>
     
     <!-- Main Content -->
     <div class="product-detail-container">
@@ -232,29 +172,7 @@
         <% } %>
     </div>
     
-    <!-- Footer -->
-    <footer class="footer">
-        <div class="footer-content">
-            <div class="footer-column">
-                <h3>HB Mart</h3>
-                <p>Quality products at affordable prices.</p>
-            </div>
-            
-            <div class="footer-column">
-                <h3>Quick Links</h3>
-                <ul class="footer-links">
-                    <li><a href="<%= user.role === 'admin' ? '/inventory' : '/shopping' %>">
-                        <%= user.role === 'admin' ? 'Inventory' : 'Shop' %>
-                    </a></li>
-                    <li><a href="/logout">Logout</a></li>
-                </ul>
-            </div>
-        </div>
-        
-        <div class="footer-bottom">
-            <p>&copy; 2024 HB Mart. All rights reserved.</p>
-        </div>
-    </footer>
+    <%- include('partials/footer', { user: user }) %>
     
     <script src="/js/main.js"></script>
 </body>

@@ -9,7 +9,13 @@ const mysql = require('mysql2');  // MySQL database driver
 const session = require('express-session');  // Session management
 const flash = require('connect-flash');  // Flash messages (for displaying temporary notifications)
 const multer = require('multer');  // File upload handling
+const nodemailer = require('nodemailer'); // <-- NEW: for sending email
+const randomstring = require('randomstring'); // <-- NEW: for OTP
 const productController = require('./controllers/productControllers'); // Product controller (MVC pattern)
+
+// Import middleware
+const { checkAuthenticated, checkAdmin, validateRegistration, validateLogin } = require('./middleware');
+
 const app = express();  // Create Express application instance
 
 // ========================================
@@ -46,6 +52,50 @@ connection.connect((err) => {
 });
 
 // ========================================
+// OTP + Email Helper (NEW)
+// ========================================
+
+// Simple in-memory cache: { email: { code, expiresAt } }
+const otpCache = {};
+
+// 保存 OTP，默认 3 分钟有效
+function setOTP(email, otp, ttl = 3 * 60 * 1000) {
+    otpCache[email] = { code: otp, expiresAt: Date.now() + ttl };
+
+    // 到时间自动清除
+    setTimeout(() => {
+        if (otpCache[email] && otpCache[email].expiresAt <= Date.now()) {
+            delete otpCache[email];
+        }
+    }, ttl + 1000);
+}
+
+// 生成 6 位数字 OTP
+function generateOTP() {
+    return randomstring.generate({ length: 6, charset: 'numeric' });
+}
+
+// 创建 Nodemailer transporter
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+    }
+});
+
+// 发送 OTP 邮件
+async function sendOTP(email, otp) {
+    return transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: email,
+        subject: 'HB Mart - Email Verification OTP',
+        html: `<h3>Your OTP is: <b>${otp}</b></h3>
+               <p>This code will expire in 3 minutes.</p>`
+    });
+}
+
+// ========================================
 // Express Application Configuration
 // ========================================
 // Set view engine to EJS
@@ -74,74 +124,13 @@ app.use(session({
 app.use(flash());
 
 // ========================================
-// Custom Middleware Functions
+// Controllers
 // ========================================
 
-/**
- * Check if user is logged in
- * If not logged in, redirect to login page
- */
-const checkAuthenticated = (req, res, next) => {
-    if (req.session.user) {
-        return next();  // Logged in, continue execution
-    } else {
-        req.flash('error', 'Please log in to view this resource');
-        res.redirect('/login');  // Not logged in, redirect to login page
-    }
-};
-
-/**
- * Check if user is an administrator
- * If not admin, deny access and redirect to shopping page
- */
-const checkAdmin = (req, res, next) => {
-    if (req.session.user && req.session.user.role === 'admin') {
-        return next();  // Is admin, continue execution
-    } else {
-        req.flash('error', 'Access denied');
-        res.redirect('/shopping');  // Not admin, redirect to shopping page
-    }
-};
-
-/**
- * Registration form validation middleware
- * Validates user registration data submission
- */
-const validateRegistration = (req, res, next) => {
-    const { username, email, password, address, contact, role } = req.body;
-
-    // Check if all fields are filled
-    if (!username || !email || !password || !address || !contact || !role) {
-        return res.status(400).send('All fields are required.');
-    }
-
-    // Validate password length: must be at least 6 characters
-    if (password.length < 6) {
-        req.flash('error', 'Password must be at least 6 characters long');
-        req.flash('formData', req.body);  // Save form data for redisplay
-        return res.redirect('/register');
-    }
-
-    // Validate contact number length: must be exactly 8 digits
-    if (contact.length !== 8) {
-        req.flash('error', 'Contact number must be exactly 8 digits');
-        req.flash('formData', req.body);
-        return res.redirect('/register');
-    }
-
-    // Validate contact number format: must contain only digits
-    if (!/^\d{8}$/.test(contact)) {
-        req.flash('error', 'Contact number must contain only digits');
-        req.flash('formData', req.body);
-        return res.redirect('/register');
-    }
-
-    next();  // Validation passed, continue execution
-};
-
-// Import cart and order controllers
+// Import cart, order and user controllers
 const cartControllers = require('./controllers/cartControllers');
 const orderControllers = require('./controllers/orderControllers');
+const userControllers = require('./controllers/userControllers');
 
 // ========================================
 // Route Definitions
@@ -174,20 +163,64 @@ app.get('/register', (req, res) => {
     });
 });
 
-// Handle user registration
-app.post('/register', validateRegistration, (req, res) => {
+// Handle user registration + send OTP
+app.post('/register', validateRegistration, async (req, res) => {
     const { username, email, password, address, contact, role } = req.body;
 
-    // Insert new user into database, password encrypted with SHA1
-    const sql = 'INSERT INTO users (username, email, password, address, contact, role) VALUES (?, ?, SHA1(?), ?, ?, ?)';
-    connection.query(sql, [username, email, password, address, contact, role], (err, result) => {
-        if (err) {
-            throw err;
-        }
-        console.log(result);
-        req.flash('success', 'Registration successful! Please log in.');
-        res.redirect('/login');  // Registration successful, redirect to login page
-    });
+    try {
+        // 1. Check if email already exists
+        const checkSql = 'SELECT id FROM users WHERE email = ?';
+        connection.query(checkSql, [email], async (checkErr, checkResults) => {
+            if (checkErr) {
+                console.error(checkErr);
+                req.flash('error', 'System error, please try again.');
+                req.flash('formData', req.body);
+                return res.redirect('/register');
+            }
+
+            if (checkResults.length > 0) {
+                req.flash('error', 'Email already registered');
+                req.flash('formData', req.body);
+                return res.redirect('/register');
+            }
+
+            // 2. Insert new user with verified = 0
+            //    ⚠️ DB 里需要有 verified TINYINT(1) DEFAULT 0
+            const insertSql = 'INSERT INTO users (username, email, password, address, contact, role, verified) VALUES (?, ?, SHA1(?), ?, ?, ?, ?)';
+            connection.query(
+                insertSql,
+                [username, email, password, address, contact, role, 0],
+                async (insertErr, result) => {
+                    if (insertErr) {
+                        console.error(insertErr);
+                        req.flash('error', 'Error creating user, please try again.');
+                        req.flash('formData', req.body);
+                        return res.redirect('/register');
+                    }
+
+                    // 3. Generate OTP & cache it
+                    const otp = generateOTP();
+                    setOTP(email, otp);
+
+                    // 4. Send OTP email
+                    try {
+                        await sendOTP(email, otp);
+                        // 跳去 OTP 页面
+                        return res.redirect(`/otp?email=${encodeURIComponent(email)}&sent=1`);
+                    } catch (mailErr) {
+                        console.error('Error sending OTP email:', mailErr);
+                        req.flash('error', 'Unable to send OTP email. Please try again later.');
+                        return res.redirect('/register');
+                    }
+                }
+            );
+        });
+    } catch (e) {
+        console.error(e);
+        req.flash('error', 'Unexpected error.');
+        req.flash('formData', req.body);
+        return res.redirect('/register');
+    }
 });
 
 // Display login page
@@ -198,37 +231,42 @@ app.get('/login', (req, res) => {
     });
 });
 
-// Handle user login
-app.post('/login', (req, res) => {
+// Handle user login (with verified check)
+app.post('/login', validateLogin, (req, res) => {
     const { email, password } = req.body;
 
-    // Validate if email and password are filled
-    if (!email || !password) {
-        req.flash('error', 'All fields are required.');
-        return res.redirect('/login');
-    }
-
-    // Query database to validate user credentials (password encrypted with SHA1)
     const sql = 'SELECT * FROM users WHERE email = ? AND password = SHA1(?)';
     connection.query(sql, [email, password], (err, results) => {
         if (err) {
-            throw err;
+            console.error(err);
+            req.flash('error', 'System error, please try again.');
+            return res.redirect('/login');
         }
 
-        if (results.length > 0) {
-            // Login successful
-            req.session.user = results[0];  // Store user info in session
-            req.flash('success', 'Login successful!');
-            // Redirect to different pages based on user role
-            if (req.session.user.role == 'user')
-                res.redirect('/shopping');  // Regular user redirects to shopping page
-            else
-                res.redirect('/inventory');  // Admin redirects to inventory management page
-        } else {
+        if (results.length === 0) {
             // Login failed: invalid credentials
             req.flash('error', 'Invalid email or password.');
-            res.redirect('/login');
+            return res.redirect('/login');
         }
+
+        const user = results[0];
+
+        // NEW: check verified flag
+        // ⚠️ 需要 users 表有 verified 字段（0/1）
+        if (!user.verified) {
+            req.flash('error', 'Please verify your email before logging in.');
+            return res.redirect('/login');
+        }
+
+        // Login successful
+        req.session.user = user;  // Store user info in session
+        req.flash('success', 'Login successful!');
+
+        // Redirect to different pages based on user role
+        if (req.session.user.role == 'user')
+            res.redirect('/shopping');  // Regular user redirects to shopping page
+        else
+            res.redirect('/inventory');  // Admin redirects to inventory management page
     });
 });
 
@@ -236,6 +274,87 @@ app.post('/login', (req, res) => {
 app.get('/logout', (req, res) => {
     req.session.destroy();  // Destroy session
     res.redirect('/');  // Redirect to home page
+});
+
+// ========================================
+// OTP Routes (NEW)
+// ========================================
+
+// Show OTP page
+app.get('/otp', (req, res) => {
+    res.render('otp', {
+        query: req.query || {}
+    });
+});
+
+// Request / resend OTP manually
+app.post('/reqOTP', (req, res) => {
+    const { email } = req.body;
+
+    if (!email) {
+        return res.redirect('/otp?error=Email+is+required');
+    }
+
+    const sql = 'SELECT * FROM users WHERE email = ?';
+    connection.query(sql, [email], async (err, results) => {
+        if (err) {
+            console.error(err);
+            return res.redirect('/otp?error=Server+error');
+        }
+
+        if (results.length === 0) {
+            return res.redirect('/otp?error=Email+not+found');
+        }
+
+        const user = results[0];
+
+        if (user.verified) {
+            // Already verified
+            return res.redirect('/login');
+        }
+
+        const otp = generateOTP();
+        setOTP(email, otp);
+
+        try {
+            await sendOTP(email, otp);
+            return res.redirect(`/otp?email=${encodeURIComponent(email)}&sent=1`);
+        } catch (mailErr) {
+            console.error('Error sending OTP email:', mailErr);
+            return res.redirect(`/otp?email=${encodeURIComponent(email)}&error=Unable+to+send+OTP`);
+        }
+    });
+});
+
+// Verify OTP
+app.post('/verifyOTP', (req, res) => {
+    const { email, otp } = req.body;
+
+    const record = otpCache[email];
+
+    if (!record || Date.now() > record.expiresAt) {
+        return res.redirect(`/otp?email=${encodeURIComponent(email)}&error=OTP+expired+or+invalid`);
+    }
+
+    if (record.code !== otp) {
+        return res.redirect(`/otp?email=${encodeURIComponent(email)}&error=Invalid+OTP`);
+    }
+
+    // OTP OK, remove cache
+    delete otpCache[email];
+
+    // Update user as verified
+    const sql = 'UPDATE users SET verified = 1 WHERE email = ?';
+    connection.query(sql, [email], (err, result) => {
+        if (err) {
+            console.error(err);
+            return res.redirect(`/otp?email=${encodeURIComponent(email)}&error=Server+error`);
+        }
+
+        // 成功后让用户去登录页
+        req.flash('success', 'Email verified successfully! Please log in.');
+        return res.redirect('/login');
+    });
 });
 
 // ========================================
@@ -249,10 +368,15 @@ app.post('/add-to-cart/:id', checkAuthenticated, cartControllers.add);
 app.get('/cart', checkAuthenticated, cartControllers.list);
 
 // Delete product from cart
+app.get('/cart/remove/:productId', checkAuthenticated, cartControllers.delete);
 app.post('/cart/delete/:productId', checkAuthenticated, cartControllers.delete);
 
 //  新增：更新购物车商品数量
 app.post('/cart/update/:productId', checkAuthenticated, cartControllers.update);
+
+// 清空购物车
+app.get('/cart/clear', checkAuthenticated, cartControllers.clearAll);
+
 // ========================================
 // Order Related Routes
 // ========================================
@@ -266,6 +390,12 @@ app.get('/orders', checkAuthenticated, orderControllers.listUserOrders);
 // View order details
 app.get('/order/:id', checkAuthenticated, orderControllers.viewOrder);
 
+// Print order invoice
+app.get('/order/:id/print', checkAuthenticated, orderControllers.printOrder);
+
+// Download order as PDF
+app.get('/order/:id/pdf', checkAuthenticated, orderControllers.downloadPDF);
+
 // Admin view all orders
 app.get('/admin/orders', checkAuthenticated, checkAdmin, orderControllers.listAllOrders);
 
@@ -274,6 +404,33 @@ app.post('/admin/order/:id/status', checkAuthenticated, checkAdmin, orderControl
 
 // Admin delete order
 app.get('/admin/order/:id/delete', checkAuthenticated, checkAdmin, orderControllers.deleteOrder);
+
+// ========================================
+// User Management Routes (Admin only)
+// ========================================
+
+// View all users (admin only)
+app.get('/admin/users', checkAuthenticated, checkAdmin, userControllers.listAll);
+
+// Display create admin form (admin only)
+app.get('/admin/users/create', checkAuthenticated, checkAdmin, userControllers.showCreateAdminForm);
+
+// Create new admin user (admin only)
+// 可以保持不变，DB 里 verified 默认 1 或 0 都行，看你设计
+app.post('/admin/users/create', checkAuthenticated, checkAdmin, userControllers.createAdmin);
+
+// Display edit user form (admin only)
+app.get('/admin/users/edit/:id', checkAuthenticated, checkAdmin, userControllers.showEditForm);
+
+// Update user (admin only)
+app.post('/admin/users/edit/:id', checkAuthenticated, checkAdmin, userControllers.update);
+
+// Delete user (admin only)
+app.get('/admin/users/delete/:id', checkAuthenticated, checkAdmin, userControllers.delete);
+
+// ========================================
+// Product Related Routes
+// ========================================
 
 // View product details by ID
 app.get('/product/:id', checkAuthenticated, productController.getById);
