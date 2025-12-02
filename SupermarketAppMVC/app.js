@@ -9,8 +9,8 @@ const mysql = require('mysql2');  // MySQL database driver
 const session = require('express-session');  // Session management
 const flash = require('connect-flash');  // Flash messages (for displaying temporary notifications)
 const multer = require('multer');  // File upload handling
-const nodemailer = require('nodemailer'); // <-- NEW: for sending email
-const randomstring = require('randomstring'); // <-- NEW: for OTP
+const nodemailer = require('nodemailer'); // for sending email
+const randomstring = require('randomstring'); // for OTP
 const productController = require('./controllers/productControllers'); // Product controller (MVC pattern)
 
 // Import middleware
@@ -52,17 +52,17 @@ connection.connect((err) => {
 });
 
 // ========================================
-// OTP + Email Helper (NEW)
+// OTP + Email Helper
 // ========================================
 
 // Simple in-memory cache: { email: { code, expiresAt } }
 const otpCache = {};
 
-// 保存 OTP，默认 3 分钟有效
-function setOTP(email, otp, ttl = 3 * 60 * 1000) {
+// Save OTP, default 1 minute
+function setOTP(email, otp, ttl = 60 * 1000) {
     otpCache[email] = { code: otp, expiresAt: Date.now() + ttl };
 
-    // 到时间自动清除
+    // Auto-clear when expired
     setTimeout(() => {
         if (otpCache[email] && otpCache[email].expiresAt <= Date.now()) {
             delete otpCache[email];
@@ -70,12 +70,12 @@ function setOTP(email, otp, ttl = 3 * 60 * 1000) {
     }, ttl + 1000);
 }
 
-// 生成 6 位数字 OTP
+// Generate 6-digit numeric OTP
 function generateOTP() {
     return randomstring.generate({ length: 6, charset: 'numeric' });
 }
 
-// 创建 Nodemailer transporter
+// Nodemailer transporter
 const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
@@ -84,14 +84,25 @@ const transporter = nodemailer.createTransport({
     }
 });
 
-// 发送 OTP 邮件
+// Send OTP email (for registration / email verification)
 async function sendOTP(email, otp) {
     return transporter.sendMail({
         from: process.env.EMAIL_USER,
         to: email,
         subject: 'HB Mart - Email Verification OTP',
         html: `<h3>Your OTP is: <b>${otp}</b></h3>
-               <p>This code will expire in 3 minutes.</p>`
+               <p>This code will expire in <b>1 minute</b>.</p>`
+    });
+}
+
+// Send OTP email specifically for login 2FA
+async function sendLoginOTP(email, otp) {
+    return transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: email,
+        subject: 'HB Mart - Login 2FA OTP',
+        html: `<h3>Your login OTP is: <b>${otp}</b></h3>
+               <p>This code will expire in <b>1 minute</b>.</p>`
     });
 }
 
@@ -112,7 +123,6 @@ app.use(express.urlencoded({
 // ========================================
 // Session and Flash Message Middleware
 // ========================================
-// Configure session middleware
 app.use(session({
     secret: 'secret',  // Session encryption key
     resave: false,  // Don't force save unmodified sessions
@@ -126,8 +136,6 @@ app.use(flash());
 // ========================================
 // Controllers
 // ========================================
-
-// Import cart, order and user controllers
 const cartControllers = require('./controllers/cartControllers');
 const orderControllers = require('./controllers/orderControllers');
 const userControllers = require('./controllers/userControllers');
@@ -163,7 +171,7 @@ app.get('/register', (req, res) => {
     });
 });
 
-// Handle user registration + send OTP
+// Handle user registration + send OTP for email verification
 app.post('/register', validateRegistration, async (req, res) => {
     const { username, email, password, address, contact, role } = req.body;
 
@@ -185,7 +193,6 @@ app.post('/register', validateRegistration, async (req, res) => {
             }
 
             // 2. Insert new user with verified = 0
-            //    ⚠️ DB 里需要有 verified TINYINT(1) DEFAULT 0
             const insertSql = 'INSERT INTO users (username, email, password, address, contact, role, verified) VALUES (?, ?, SHA1(?), ?, ?, ?, ?)';
             connection.query(
                 insertSql,
@@ -198,14 +205,14 @@ app.post('/register', validateRegistration, async (req, res) => {
                         return res.redirect('/register');
                     }
 
-                    // 3. Generate OTP & cache it
+                    // 3. Generate OTP & cache it (1 min)
                     const otp = generateOTP();
                     setOTP(email, otp);
 
                     // 4. Send OTP email
                     try {
                         await sendOTP(email, otp);
-                        // 跳去 OTP 页面
+                        // Go to OTP page
                         return res.redirect(`/otp?email=${encodeURIComponent(email)}&sent=1`);
                     } catch (mailErr) {
                         console.error('Error sending OTP email:', mailErr);
@@ -231,12 +238,12 @@ app.get('/login', (req, res) => {
     });
 });
 
-// Handle user login (with verified check)
+// Handle user login (with email verified check + 2FA OTP)
 app.post('/login', validateLogin, (req, res) => {
     const { email, password } = req.body;
 
     const sql = 'SELECT * FROM users WHERE email = ? AND password = SHA1(?)';
-    connection.query(sql, [email, password], (err, results) => {
+    connection.query(sql, [email, password], async (err, results) => {
         if (err) {
             console.error(err);
             req.flash('error', 'System error, please try again.');
@@ -251,23 +258,89 @@ app.post('/login', validateLogin, (req, res) => {
 
         const user = results[0];
 
-        // NEW: check verified flag
-        // ⚠️ 需要 users 表有 verified 字段（0/1）
+        // First, must be email-verified
         if (!user.verified) {
             req.flash('error', 'Please verify your email before logging in.');
             return res.redirect('/login');
         }
 
-        // Login successful
-        req.session.user = user;  // Store user info in session
-        req.flash('success', 'Login successful!');
+        // 1st factor OK (password) → generate OTP, send for 2FA
+        const otp = generateOTP();
+        setOTP(user.email, otp);  // 1 minute
 
-        // Redirect to different pages based on user role
-        if (req.session.user.role == 'user')
-            res.redirect('/shopping');  // Regular user redirects to shopping page
-        else
-            res.redirect('/inventory');  // Admin redirects to inventory management page
+        try {
+            await sendLoginOTP(user.email, otp);
+        } catch (mailErr) {
+            console.error('Error sending login OTP:', mailErr);
+            req.flash('error', 'Unable to send OTP. Please try again later.');
+            return res.redirect('/login');
+        }
+
+        // Temporarily store user info until OTP is verified
+        req.session.pendingLoginUser = {
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            role: user.role
+        };
+
+        // Go to login OTP page
+        return res.redirect('/login-otp?sent=1');
     });
+});
+
+// Show login OTP page (2FA)
+app.get('/login-otp', (req, res) => {
+    if (!req.session.pendingLoginUser) {
+        req.flash('error', 'Session expired. Please log in again.');
+        return res.redirect('/login');
+    }
+
+    res.render('loginOtp', {
+        email: req.session.pendingLoginUser.email,
+        errors: req.flash('error'),
+        sent: req.query.sent
+    });
+});
+
+// Verify login OTP (2FA)
+app.post('/verifyLoginOTP', (req, res) => {
+    if (!req.session.pendingLoginUser) {
+        req.flash('error', 'Session expired. Please log in again.');
+        return res.redirect('/login');
+    }
+
+    const { otp } = req.body;
+    const email = req.session.pendingLoginUser.email;
+
+    const record = otpCache[email];
+
+    // Check expiry / existence
+    if (!record || Date.now() > record.expiresAt) {
+        req.flash('error', 'OTP expired or invalid.');
+        return res.redirect('/login-otp');
+    }
+
+    // Check code
+    if (record.code !== otp) {
+        req.flash('error', 'Incorrect OTP.');
+        return res.redirect('/login-otp');
+    }
+
+    // OTP OK → cleanup
+    delete otpCache[email];
+
+    // Promote pending user to fully logged-in user
+    req.session.user = req.session.pendingLoginUser;
+    delete req.session.pendingLoginUser;
+
+    req.flash('success', 'Login successful!');
+
+    if (req.session.user.role === 'user') {
+        return res.redirect('/shopping');
+    } else {
+        return res.redirect('/inventory');
+    }
 });
 
 // Logout
@@ -277,10 +350,10 @@ app.get('/logout', (req, res) => {
 });
 
 // ========================================
-// OTP Routes (NEW)
+// Registration OTP Routes (email verification)
 // ========================================
 
-// Show OTP page
+// Show OTP page (for registration verification)
 app.get('/otp', (req, res) => {
     res.render('otp', {
         query: req.query || {}
@@ -326,7 +399,7 @@ app.post('/reqOTP', (req, res) => {
     });
 });
 
-// Verify OTP
+// Verify registration OTP
 app.post('/verifyOTP', (req, res) => {
     const { email, otp } = req.body;
 
@@ -351,7 +424,7 @@ app.post('/verifyOTP', (req, res) => {
             return res.redirect(`/otp?email=${encodeURIComponent(email)}&error=Server+error`);
         }
 
-        // 成功后让用户去登录页
+        // Go to login page
         req.flash('success', 'Email verified successfully! Please log in.');
         return res.redirect('/login');
     });
@@ -371,10 +444,10 @@ app.get('/cart', checkAuthenticated, cartControllers.list);
 app.get('/cart/remove/:productId', checkAuthenticated, cartControllers.delete);
 app.post('/cart/delete/:productId', checkAuthenticated, cartControllers.delete);
 
-//  新增：更新购物车商品数量
+// Update cart item quantity
 app.post('/cart/update/:productId', checkAuthenticated, cartControllers.update);
 
-// 清空购物车
+// Clear cart
 app.get('/cart/clear', checkAuthenticated, cartControllers.clearAll);
 
 // ========================================
@@ -416,7 +489,6 @@ app.get('/admin/users', checkAuthenticated, checkAdmin, userControllers.listAll)
 app.get('/admin/users/create', checkAuthenticated, checkAdmin, userControllers.showCreateAdminForm);
 
 // Create new admin user (admin only)
-// 可以保持不变，DB 里 verified 默认 1 或 0 都行，看你设计
 app.post('/admin/users/create', checkAuthenticated, checkAdmin, userControllers.createAdmin);
 
 // Display edit user form (admin only)

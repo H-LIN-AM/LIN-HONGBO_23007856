@@ -2,11 +2,12 @@
 <header class="header-top">
     <div class="header-top-content">
         <div class="header-top-text">
-            <% if (user && user.role === 'admin') { %>
-                Admin Panel - <%= pageTitle || 'Dashboard' %>
+           <% if (user && user.role === 'admin') { %>
+                Admin Panel - <%= typeof pageTitle !== 'undefined' ? pageTitle : 'Dashboard' %>
             <% } else { %>
                 Free delivery on orders over $60 | Same-day delivery available
             <% } %>
+
         </div>
         <div class="header-top-links">
             <% if (user) { %>
